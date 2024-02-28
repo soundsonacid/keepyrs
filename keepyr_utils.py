@@ -1,8 +1,10 @@
+import csv
 import math
+import os
 import time
 
 from typing import Optional, Union
-from dataclasses import dataclass
+from dataclasses import asdict, dataclass
 from aiohttp import web
 
 from solana.rpc.core import _COMMITMENT_TO_SOLDERS
@@ -245,3 +247,22 @@ async def start_server(bot):
     await runner.setup()
     site = web.TCPSite(runner, "0.0.0.0", 8080)
     await site.start()
+
+
+def append_to_csv(data_object, filename, record_type):
+    # Convert data object to dictionary
+    data_dict = asdict(data_object)
+    data_dict["record_type"] = record_type  # Add a record type to distinguish the data
+
+    # Determine if we need to write headers (only if the file is new)
+    write_headers = not os.path.exists(filename) or os.path.getsize(filename) == 0
+
+    # Open the file in append mode
+    with open(filename, "a", newline="") as csvfile:
+        writer = csv.DictWriter(csvfile, fieldnames=data_dict.keys())
+
+        if write_headers:
+            writer.writeheader()
+        writer.writerow(data_dict)
+
+    print(f"{record_type} data appended to {filename} successfully.")

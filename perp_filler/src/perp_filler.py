@@ -157,24 +157,21 @@ class PerpFiller(PerpFillerConfig):
 
                 fillable_nodes = []
                 triggerable_nodes = []
-                for market in self.drift_client.get_perp_market_accounts():
-                    # filter out all markets that we can't really fill on
-                    if is_one_of_variant(market.status, ["Initialized", "FillPaused"]):
-                        continue
-                    try:
-                        nodes_to_fill, nodes_to_trigger = get_perp_nodes_for_market(
-                            self, market, dlob
-                        )
+                market = self.drift_client.get_perp_market_account(9)
 
-                        fillable_nodes += nodes_to_fill
-                        triggerable_nodes += nodes_to_trigger
+                try:
+                    nodes_to_fill, nodes_to_trigger = get_perp_nodes_for_market(
+                        self, market, dlob
+                    )
 
-                    except Exception as e:
-                        logger.error(
-                            f"{self.name} Failed to get nodes for market: {market.market_index}"
-                        )
-                        traceback.print_exc()
-                        continue
+                    fillable_nodes += nodes_to_fill
+                    triggerable_nodes += nodes_to_trigger
+
+                except Exception as e:
+                    logger.error(
+                        f"{self.name} Failed to get nodes for market: {market.market_index}"
+                    )
+                    traceback.print_exc()
 
                 (
                     filtered_fillable_nodes,

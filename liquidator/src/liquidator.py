@@ -274,7 +274,7 @@ class Liquidator(LiquidatorConfig):
                         liquidatee_position.market_index
                     )
 
-                    if not sub_account_to_liq_perp:
+                    if sub_account_to_liq_perp is None:
                         logger.error(
                             f"sub account not found for perp market: {liquidatee_position.market_index}"
                         )
@@ -294,6 +294,18 @@ class Liquidator(LiquidatorConfig):
                                 f"successfully liquidated perp position for user: {liquidatable_user.user_key}"
                             )
                             logger.success({sig})
+                            logs = await self.drift_client.connection.get_transaction(
+                                sig
+                            )
+                            if logs.value:
+                                if logs.value.transaction:
+                                    if logs.value.transaction.meta:
+                                        if logs.value.transaction.meta.log_messages:
+                                            append_to_csv(
+                                                logs.value.transaction.meta.log_messages,
+                                                "liquidations.csv",
+                                                sig,
+                                            )
                         except Exception as e:
                             logger.error(
                                 f"failed to liquidate perp position for user: {liquidatable_user.user_key}"
@@ -316,6 +328,18 @@ class Liquidator(LiquidatorConfig):
                                 None,
                                 liq_sub_account_id=sub_account_to_liq_perp,
                             )
+                            logs = await self.drift_client.connection.get_transaction(
+                                sig
+                            )
+                            if logs.value:
+                                if logs.value.transaction:
+                                    if logs.value.transaction.meta:
+                                        if logs.value.transaction.meta.log_messages:
+                                            append_to_csv(
+                                                logs.value.transaction.meta.log_messages,
+                                                "liquidations.csv",
+                                                sig,
+                                            )
                         except Exception as e:
                             logger.error(
                                 f"failed to clear lp position for user: {liquidatable_user.user_key}"
@@ -341,7 +365,7 @@ class Liquidator(LiquidatorConfig):
                                 )
                             )
 
-                            if not sub_account_to_liq_perp:
+                            if sub_account_to_liq_perp is None:
                                 logger.error(
                                     f"sub account not found for perp market: {liquidatee_perp_index_with_open_orders}"
                                 )
@@ -360,6 +384,20 @@ class Liquidator(LiquidatorConfig):
                                     f"successfully cleared open orders for user: {liquidatable_user.user_key}"
                                 )
                                 logger.success({sig})
+                                logs = (
+                                    await self.drift_client.connection.get_transaction(
+                                        sig
+                                    )
+                                )
+                                if logs.value:
+                                    if logs.value.transaction:
+                                        if logs.value.transaction.meta:
+                                            if logs.value.transaction.meta.log_messages:
+                                                append_to_csv(
+                                                    logs.value.transaction.meta.log_messages,
+                                                    "liquidations.csv",
+                                                    sig,
+                                                )
                             except Exception as e:
                                 logger.error(
                                     f"failed to clear open orders for user: {liquidatable_user.user_key}"
@@ -380,7 +418,7 @@ class Liquidator(LiquidatorConfig):
                                 )
                             )
 
-                            if not sub_account_to_liq_perp:
+                            if sub_account_to_liq_perp is None:
                                 logger.error(
                                     f"sub account not found for spot market: {index_with_max_assets}"
                                 )
@@ -426,6 +464,16 @@ class Liquidator(LiquidatorConfig):
                         f"successfully cleared stuck liquidation for user: {liquidatable_user.user.user_key}"
                     )
                     logger.success({sig})
+                    logs = await self.drift_client.connection.get_transaction(sig)
+                    if logs.value:
+                        if logs.value.transaction:
+                            if logs.value.transaction.meta:
+                                if logs.value.transaction.meta.log_messages:
+                                    append_to_csv(
+                                        logs.value.transaction.meta.log_messages,
+                                        "liquidations.csv",
+                                        sig,
+                                    )
                 except Exception as e:
                     logger.error(
                         f"failed to clear stuck liquidation for user: {liquidatable_user.user_key}"
@@ -462,6 +510,16 @@ class Liquidator(LiquidatorConfig):
                     f"successfully resolved perp bankruptcy in market: {market_index} for user: {str(user_key)}"
                 )
                 logger.success({sig})
+                logs = await self.drift_client.connection.get_transaction(sig)
+                if logs.value:
+                    if logs.value.transaction:
+                        if logs.value.transaction.meta:
+                            if logs.value.transaction.meta.log_messages:
+                                append_to_csv(
+                                    logs.value.transaction.meta.log_messages,
+                                    "liquidations.csv",
+                                    sig,
+                                )
             except Exception as e:
                 logger.error(
                     f"failed to resolve perp bankruptcy in market: {market_index} for user: {str(user_key)}"
@@ -485,6 +543,16 @@ class Liquidator(LiquidatorConfig):
                     f"successfully resolved spot bankruptcy in market: {market_index} for user: {str(user_key)}"
                 )
                 logger.success({sig})
+                logs = await self.drift_client.connection.get_transaction(sig)
+                if logs.value:
+                    if logs.value.transaction:
+                        if logs.value.transaction.meta:
+                            if logs.value.transaction.meta.log_messages:
+                                append_to_csv(
+                                    logs.value.transaction.meta.log_messages,
+                                    "liquidations.csv",
+                                    sig,
+                                )
             except Exception as e:
                 logger.error(
                     f"failed to resolve spot bankruptcy in market: {market_index} for user: {str(user_key)}"

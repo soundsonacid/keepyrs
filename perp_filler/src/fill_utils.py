@@ -1,5 +1,6 @@
 import math
 import time
+import traceback
 
 from typing import Set
 
@@ -15,6 +16,7 @@ from driftpy.addresses import get_user_account_public_key
 
 from keepyr_utils import (
     COMPUTE_BUDGET_PROGRAM,
+    append_to_csv,
     get_node_to_fill_signature,
     get_node_to_trigger_signature,
     simulate_and_get_tx_with_cus,
@@ -95,7 +97,18 @@ async def execute_triggerable_perp_nodes(perp_filler, nodes: list[NodeToTrigger]
                     f"triggered node account: {str(user_account)} order: {order.order_id}"
                 )
                 logger.info(f"tx sig: {tx_sig_and_slot.tx_sig}")
-
+                logs = await perp_filler.drift_client.connection.get_transaction(
+                    tx_sig_and_slot.tx_sig
+                )
+                if logs.value:
+                    if logs.value.transaction:
+                        if logs.value.transaction.meta:
+                            if logs.value.transaction.meta.log_messages:
+                                append_to_csv(
+                                    logs.value.transaction.meta.log_messages,
+                                    "fills.csv",
+                                    tx_sig_and_slot.tx_sig,
+                                )
             except Exception as e:
                 node.node.have_trigger = False
                 logger.error(
@@ -439,8 +452,19 @@ async def send_fill_tx_and_parse_logs(
         tx_resp: TxSigAndSlot = await perp_filler.drift_client.tx_sender.send(tx)
         logger.success(f"sent fill tx: {tx_resp.tx_sig} (fill tx id: {fill_tx_id})")
         logger.success(f"took: {time.time() - start}s")
+        logs = await perp_filler.drift_client.connection.get_transaction(tx_resp.tx_sig)
+        if logs.value:
+            if logs.value.transaction:
+                if logs.value.transaction.meta:
+                    if logs.value.transaction.meta.log_messages:
+                        append_to_csv(
+                            logs.value.transaction.meta.log_messages,
+                            "fills.csv",
+                            tx_resp.tx_sig,
+                        )
     except Exception as e:
         if "RevertFill" in str(e):
             logger.error(f"Fill reverted (fill tx id: {fill_tx_id})")
         else:
             logger.critical(f"Failed to send fill transaction: {e}")
+            traceback.print_exc()

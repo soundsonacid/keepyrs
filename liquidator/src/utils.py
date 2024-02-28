@@ -12,6 +12,7 @@ from driftpy.math.perp_position import calculate_claimable_pnl  # type: ignore
 from driftpy.math.tiers import get_perp_market_tier_number, perp_tier_is_as_safe_as  # type: ignore
 
 from custom_log import get_custom_logger
+from keepyr_utils import append_to_csv
 
 logger = get_custom_logger(__name__)
 
@@ -229,6 +230,16 @@ async def liquidate_borrow(
             f"successfully liquidated spot for user: {user.user_public_key}, market: {borrow_market_index_to_liq}, amount: {borrow_amount_to_liq}"
         )
         logger.success({sig})
+        logs = await liquidator.drift_client.connection.get_transaction(sig)
+        if logs.value:
+            if logs.value.transaction:
+                if logs.value.transaction.meta:
+                    if logs.value.transaction.meta.log_messages:
+                        append_to_csv(
+                            logs.value.transaction.meta.log_messages,
+                            "liquidations.csv",
+                            sig,
+                        )
     except Exception as e:
         logger.error(
             f"failed to liquidate spot for user: {user.user_public_key}, market: {borrow_market_index_to_liq}: {e}"
@@ -311,6 +322,16 @@ async def liquidate_perp_pnl(
                     f"successfully liquidated borrow for perp pnl for user: {user.user_public_key}, market: {liquidatee_position.market_index}, amount: {borrow_amount_to_liq // frac}"
                 )
                 logger.success({sig})
+                logs = await liquidator.drift_client.connection.get_transaction(sig)
+                if logs.value:
+                    if logs.value.transaction:
+                        if logs.value.transaction.meta:
+                            if logs.value.transaction.meta.log_messages:
+                                append_to_csv(
+                                    logs.value.transaction.meta.log_messages,
+                                    "liquidations.csv",
+                                    sig,
+                                )
             except Exception as e:
                 logger.error(
                     f"failed to liquidate borrow for perp pnl for user: {user.user_public_key}, market: {liquidatee_position.market_index}: {e}"
@@ -361,6 +382,16 @@ async def liquidate_perp_pnl(
                 f"successfully liquidated deposit for perp pnl for user: {user.user_public_key}, market: {liquidatee_position.market_index}, amount: {deposit_amount_to_liq}"
             )
             logger.sucess({sig})
+            logs = await liquidator.drift_client.connection.get_transaction(sig)
+            if logs.value:
+                if logs.value.transaction:
+                    if logs.value.transaction.meta:
+                        if logs.value.transaction.meta.log_messages:
+                            append_to_csv(
+                                logs.value.transaction.meta.log_messages,
+                                "liquidations.csv",
+                                sig,
+                            )
         except Exception as e:
             logger.error(
                 f"failed to liquidate deposit for perp pnl for user: {user.user_public_key}, market: {liquidatee_position.market_index}: {e}"
