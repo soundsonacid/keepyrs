@@ -330,7 +330,7 @@ class Liquidator(LiquidatorConfig):
                                 f"failed to liquidate perp position for user: {liquidatable_user.user_key}"
                             )
                             logger.error(e)
-                            os._exit(1)
+                            # os._exit(1)
                         logger.info(
                             f"finished liquidating perp position in {time.time() - start}s"
                         )
@@ -365,7 +365,7 @@ class Liquidator(LiquidatorConfig):
                                 f"failed to clear lp position for user: {liquidatable_user.user_key}"
                             )
                             logger.error(e)
-                            os._exit(1)
+                            # os._exit(1)
                         logger.info(
                             f"finished clearing lp position in {time.time() - start}s"
                         )
@@ -424,7 +424,7 @@ class Liquidator(LiquidatorConfig):
                                     f"failed to clear open orders for user: {liquidatable_user.user_key}"
                                 )
                                 logger.error(e)
-                                os._exit(1)
+                                # os._exit(1)
                             logger.info(
                                 f"finished clearing open orders in {time.time() - start}s"
                             )
@@ -465,7 +465,7 @@ class Liquidator(LiquidatorConfig):
                                     f"failed to liquidate spot position for user: {liquidatable_user.user_key}"
                                 )
                                 logger.error(e)
-                                os._exit(1)
+                                # os._exit(1)
                             logger.info(
                                 f"finished liquidating spot position in {time.time() - start}s"
                             )
@@ -502,7 +502,7 @@ class Liquidator(LiquidatorConfig):
                         f"failed to clear stuck liquidation for user: {liquidatable_user.user_key}"
                     )
                     logger.error(e)
-                    os._exit(1)
+                    # os._exit(1)
                 logger.info(
                     f"finished clearing stuck liquidation in {time.time() - start}s"
                 )
@@ -549,7 +549,7 @@ class Liquidator(LiquidatorConfig):
                     f"failed to resolve perp bankruptcy in market: {market_index} for user: {str(user_key)}"
                 )
                 logger.error(e)
-                os._exit(1)
+                # os._exit(1)
             logger.info(
                 f"finished resolving for perp market: {market_index} in {start - time.time()}s"
             )
@@ -583,7 +583,7 @@ class Liquidator(LiquidatorConfig):
                     f"failed to resolve spot bankruptcy in market: {market_index} for user: {str(user_key)}"
                 )
                 logger.error(e)
-                os._exit(1)
+                # os._exit(1)
             logger.info(
                 f"finished resolving for spot market: {market_index} in {start - time.time()}s"
             )
@@ -621,10 +621,11 @@ async def main():
     await usermap.subscribe()
 
     perps = {
-        0: 0,
-        1: 0,
-        2: 0,
-        3: 0,
+        9: 0
+        # 0: 0,
+        # 1: 0,
+        # 2: 0,
+        # 3: 0,
         # 4:0,
         # 5:0,
         # 6:0,
@@ -635,10 +636,11 @@ async def main():
     }
 
     spot = {
-        0: 0,
-        1: 0,
-        2: 0,
-        3: 0,
+        # 9:0
+        # 0: 0,
+        # 1: 0,
+        # 2: 0,
+        # 3: 0,
         # 4:0,
         # 5:0,
         # 6:0,
@@ -648,12 +650,7 @@ async def main():
         # 10:0
     }
 
-    min_deposit_to_liq = {
-        0: 100,
-        1: 100,
-        2: 100,
-        3: 100,
-    }
+    min_deposit_to_liq = {9: 0}
     liquidator_config = LiquidatorConfig(
         "liquidator",
         drift_client,
