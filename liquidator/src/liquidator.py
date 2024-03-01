@@ -57,7 +57,7 @@ class Liquidator(LiquidatorConfig):
 
         self.max_pos_takeover_pct_num: int = 50
         self.max_pos_takeover_pct_den: int = 100
-        self.min_deposit_amount_to_liq: dict[int, int] = {}
+        self.min_deposit_amount_to_liq = config.min_deposit_to_liq or {}
 
     async def init(self):
         logger.info(f"Initializing {self.name}")
@@ -130,13 +130,21 @@ class Liquidator(LiquidatorConfig):
         liquidated_users = 0
 
         for user in self.usermap.values():
-            can_be_liquidated, margin_requirement, _ = user.can_be_liquidated()
+            (
+                can_be_liquidated,
+                margin_requirement,
+                total_collateral,
+            ) = user.can_be_liquidated()
             if can_be_liquidated or user.is_being_liquidated():
                 user_key = str(user.user_public_key)
                 liquidated_users += 1
                 liquidatable_users.append(
                     LiquidatableUser(
-                        user, user_key, margin_requirement, can_be_liquidated
+                        user,
+                        user_key,
+                        margin_requirement,
+                        can_be_liquidated,
+                        total_collateral,
                     )
                 )
 
@@ -144,9 +152,12 @@ class Liquidator(LiquidatorConfig):
             liquidatable_users, key=lambda user: user.margin_requirement, reverse=True
         )
 
+        print(len(liquidatable_users))
+
         for liquidatable_user in liquidatable_users:
-            user_account = liquidatable_user.user.get_user_account()
-            auth = str(user_account.authority)
+            print(
+                f"total collateral: {liquidatable_user.total_collateral} maintenance requirement: {liquidatable_user.margin_requirement} can be liq: {liquidatable_user.can_be_liquidated}"
+            )
 
             if is_user_bankrupt(user) or user.is_bankrupt():
                 await self.try_resolve_bankruptcy(user)
@@ -242,6 +253,14 @@ class Liquidator(LiquidatorConfig):
                             liquidatee_position.market_index
                         )
 
+                        # if not is_variant(perp_market.status, "Active"):
+                        #     logger.warn(f"perp market {liquidatee_position.market_index} not active: {perp_market.status}")
+                        #     continue
+
+                        if perp_market.market_index == 17:
+                            logger.warn("rlb")
+                            continue
+
                         if not perp_market:
                             logger.error(
                                 f"perp market {liquidatee_position.market_index} not found"
@@ -311,6 +330,7 @@ class Liquidator(LiquidatorConfig):
                                 f"failed to liquidate perp position for user: {liquidatable_user.user_key}"
                             )
                             logger.error(e)
+                            os._exit(1)
                         logger.info(
                             f"finished liquidating perp position in {time.time() - start}s"
                         )
@@ -345,6 +365,7 @@ class Liquidator(LiquidatorConfig):
                                 f"failed to clear lp position for user: {liquidatable_user.user_key}"
                             )
                             logger.error(e)
+                            os._exit(1)
                         logger.info(
                             f"finished clearing lp position in {time.time() - start}s"
                         )
@@ -403,6 +424,7 @@ class Liquidator(LiquidatorConfig):
                                     f"failed to clear open orders for user: {liquidatable_user.user_key}"
                                 )
                                 logger.error(e)
+                                os._exit(1)
                             logger.info(
                                 f"finished clearing open orders in {time.time() - start}s"
                             )
@@ -443,6 +465,7 @@ class Liquidator(LiquidatorConfig):
                                     f"failed to liquidate spot position for user: {liquidatable_user.user_key}"
                                 )
                                 logger.error(e)
+                                os._exit(1)
                             logger.info(
                                 f"finished liquidating spot position in {time.time() - start}s"
                             )
@@ -479,6 +502,7 @@ class Liquidator(LiquidatorConfig):
                         f"failed to clear stuck liquidation for user: {liquidatable_user.user_key}"
                     )
                     logger.error(e)
+                    os._exit(1)
                 logger.info(
                     f"finished clearing stuck liquidation in {time.time() - start}s"
                 )
@@ -525,6 +549,7 @@ class Liquidator(LiquidatorConfig):
                     f"failed to resolve perp bankruptcy in market: {market_index} for user: {str(user_key)}"
                 )
                 logger.error(e)
+                os._exit(1)
             logger.info(
                 f"finished resolving for perp market: {market_index} in {start - time.time()}s"
             )
@@ -557,6 +582,8 @@ class Liquidator(LiquidatorConfig):
                 logger.error(
                     f"failed to resolve spot bankruptcy in market: {market_index} for user: {str(user_key)}"
                 )
+                logger.error(e)
+                os._exit(1)
             logger.info(
                 f"finished resolving for spot market: {market_index} in {start - time.time()}s"
             )
@@ -583,7 +610,7 @@ async def main():
         account_subscription=AccountSubscriptionConfig(
             "websocket", commitment=commitment
         ),
-        tx_params=TxParams(700_000, 50_000),  # crank priority fees way up
+        tx_params=TxParams(700_000, 100_000),  # crank priority fees way up
         opts=tx_opts,
         tx_sender=fast_tx_sender,
     )
@@ -593,6 +620,40 @@ async def main():
 
     await usermap.subscribe()
 
+    perps = {
+        0: 0,
+        1: 0,
+        2: 0,
+        3: 0,
+        # 4:0,
+        # 5:0,
+        # 6:0,
+        # 7:0,
+        # 8:0,
+        # 9:0,
+        # 10:0
+    }
+
+    spot = {
+        0: 0,
+        1: 0,
+        2: 0,
+        3: 0,
+        # 4:0,
+        # 5:0,
+        # 6:0,
+        # 7:0,
+        # 8:0,
+        # 9:0,
+        # 10:0
+    }
+
+    min_deposit_to_liq = {
+        0: 100,
+        1: 100,
+        2: 100,
+        3: 100,
+    }
     liquidator_config = LiquidatorConfig(
         "liquidator",
         drift_client,
@@ -601,8 +662,8 @@ async def main():
         [0],
         0,
         [0],
-        {0: 0},
-        {0: 0},
+        perps,
+        spot,
     )
 
     liquidator = Liquidator(liquidator_config)
@@ -623,3 +684,6 @@ async def main():
 
 if __name__ == "__main__":
     asyncio.run(main())
+
+# total collateral: 1953682317938.0 maintenance requirement: 2154879942780.0 can be liq: True
+#                   3482100164362                            2155531629170
