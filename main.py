@@ -1,25 +1,24 @@
 import asyncio
 import os
-import subprocess
 
 from dotenv import load_dotenv  # type: ignore
 
 from solana.rpc.async_api import AsyncClient
-from solders.keypair import Keypair  # type: ignore
-from anchorpy import Wallet, Provider
+from anchorpy import Wallet
 
 from driftpy.drift_client import DriftClient
 from driftpy.keypair import load_keypair
 from driftpy.account_subscription_config import AccountSubscriptionConfig
 from driftpy.types import TxParams
-from driftpy.constants.numeric_constants import QUOTE_PRECISION
 from driftpy.user_map.user_map_config import UserMapConfig, WebsocketConfig
 from driftpy.user_map.user_map import UserMap
+from keepyr_types import LiquidatorConfig, PerpFillerConfig
 from perp_filler.src.perp_filler import PerpFiller
 from liquidator.src.liquidator import Liquidator
 
-from keepyr_types import PerpFillerConfig, LiquidatorConfig
-from driftpy.setup.helpers import _create_and_mint_user_usdc, _create_mint, _create_wsol
+from spl.token.async_client import AsyncToken
+from spl.token.constants import TOKEN_PROGRAM_ID
+from solana.rpc.core import RPCException
 
 
 async def main():
@@ -32,67 +31,53 @@ async def main():
 
     connection = AsyncClient(url)
 
-    provider = Provider(connection, wallet)
-
     drift_client = DriftClient(
         connection,
         wallet,
         "mainnet",
         account_subscription=AccountSubscriptionConfig("websocket"),
-        tx_params=TxParams(1_400_000, 20_000),  # crank priority fees way up
+        tx_params=TxParams(1_400_000, 100_000_000),  # crank priority fees way up
     )
 
     await drift_client.subscribe()
 
-    sig = await connection.request_airdrop(kp.pubkey(), int(10_000 * 1e9))
+    await connection.request_airdrop(kp.pubkey(), int(10_000 * 1e9))
     print("airdrop received")
-    await asyncio.sleep(3)
+    await asyncio.sleep(10)
 
-    # command = ["solana", "confirm", f"{str(sig.value)}"] # do it manually because confirm transaction lies
-    # output = subprocess.run(command, capture_output=True, text=True).stdout.strip()
-    # if "Confirmed" in output or "Processed" in output or "Finalized" in output:
-    #     print(f"confirmed airdrop tx: {sig}")
-    # else:
-    #     raise Exception("failed to confirm airdrop tx")
+    token = AsyncToken(connection, kp.pubkey(), TOKEN_PROGRAM_ID, kp)
 
-    # usdc_mint = await _create_mint(provider)
+    while True:
+        try:
+            ata = await token.create_wrapped_native_account(
+                connection, TOKEN_PROGRAM_ID, kp.pubkey(), kp, int(6_000 * 1e9)
+            )
+            print(str(ata))
+            break
+        except RPCException:
+            print("retrying")
+            await asyncio.sleep(5)
 
-    # print("usdc mint created")
-
-    # USDC_AMOUNT = 10_000 * QUOTE_PRECISION
-    # usdc_acc = await _create_and_mint_user_usdc(usdc_mint, provider, USDC_AMOUNT, provider.wallet.public_key)
-    # print("ata created and minted USDC")
-    # await drift_client.initialize_user()
-    # print("user initialized")
+    try:
+        await drift_client.initialize_user()
+        print("user initialized")
+    except RPCException:
+        print("user already initialized")
 
     await drift_client.add_user(0)
     print("user added")
-    # await asyncio.sleep(10)
-    # await drift_client.get_user(0).account_subscriber.update_cache()
-    # print("cache updated")
-    # wsol = Keypair()
-    # tx = await _create_wsol(wsol, provider, wallet.public_key)
-    # tx.recent_blockhash = (
-    #     await provider.connection.get_latest_blockhash()
-    # ).value.blockhash
-    # tx.sign_partial(wsol)
-    # provider.wallet.sign_transaction(tx)
-    # await provider.send(tx)
 
-    # num = drift_client.convert_to_spot_precision(10_000, 1)
-    # await drift_client.deposit(num, 1, wsol.pubkey())
-    # print("deposited")
+    await asyncio.sleep(20)
 
-    # sig = await drift_client.initialize_user()
-    # print(sig)
-    # command = ["solana", "confirm", f"{str(sig)}"] # do it manually because confirm transaction lies
-    # output = subprocess.run(command, capture_output=True, text=True).stdout.strip()
-    # if "Confirmed" in output or "Processed" in output or "Finalized" in output:
-    #     print(f"confirmed init user tx: {sig}")
-    # else:
-    #     raise Exception("failed to confirm init user tx")
-
-    # raise Exception
+    while True:
+        try:
+            num = drift_client.convert_to_spot_precision(5_000, 1)
+            await drift_client.deposit(num, 1, ata)
+            print("deposited")
+            break
+        except AttributeError:
+            print("retrying")
+            await asyncio.sleep(5)
 
     await asyncio.sleep(30)
     usermap_config = UserMapConfig(drift_client, WebsocketConfig())
@@ -107,16 +92,85 @@ async def main():
 
     perp_filler = PerpFiller(perp_filler_config, drift_client, usermap)
 
+    spot = {
+        0: 0,
+        1: 0,
+        2: 0,
+        3: 0,
+        4: 0,
+        5: 0,
+        6: 0,
+        7: 0,
+        8: 0,
+        9: 0,
+        10: 0,
+        11: 0,
+    }
+
+    perp = {
+        0: 0,
+        1: 0,
+        2: 0,
+        3: 0,
+        4: 0,
+        5: 0,
+        6: 0,
+        7: 0,
+        8: 0,
+        9: 0,
+        10: 0,
+        11: 0,
+        12: 0,
+        13: 0,
+        14: 0,
+        15: 0,
+        16: 0,
+        17: 0,
+        18: 0,
+        19: 0,
+        20: 0,
+        21: 0,
+        22: 0,
+        23: 0,
+        24: 0,
+    }
+
     liquidator_config = LiquidatorConfig(
         "liquidator",
         drift_client,
         usermap,
-        [0],
-        [0],
+        [
+            0,
+            1,
+            2,
+            3,
+            4,
+            5,
+            6,
+            7,
+            8,
+            9,
+            10,
+            11,
+            12,
+            13,
+            14,
+            15,
+            16,
+            17,
+            18,
+            19,
+            20,
+            21,
+            22,
+            23,
+            24,
+        ],
+        [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11],
         0,
         [0],
-        {9: 0},
-        {0: 0},
+        perp,
+        spot,
     )
 
     liquidator = Liquidator(liquidator_config)
@@ -129,14 +183,14 @@ async def main():
         print(f"attempting to fill & liquidate: {i}")
         await perp_filler.try_fill()
         await asyncio.sleep(10)
-        await liquidator.try_liquidate()
+        await liquidator.try_resolve_bankruptcies()
         await asyncio.sleep(10)
         await usermap.sync()
 
     flag_file = os.path.expanduser("~/file.txt")
 
-    with open(flag_file, "w") as f:
-        f.write("done")
+    # with open(flag_file, "w") as f:
+    #     f.write("done")
 
     print("keepyrs done")
 

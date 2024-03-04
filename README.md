@@ -20,3 +20,16 @@ To adjust your account's target leverage, change the TARGET_LEVERAGE_PER_ACCOUNT
 `poetry run python -m perp_filler.src.perp_filler`
 
 WIP
+
+
+## SIMS
+
+1. `poetry shell`
+2. `poetry install`
+3. Create `.env` file in `keepyrs` with wallet `PRIVATE_KEY` and `RPC_URL=http://127.0.0.1:8899`
+4. `poetry run python main.py`
+5. if you get errors before the bot loops start just `control-c` and re-run the script
+
+it seems like for some reason you have to run the script twice for collateral to be recognized by the liquidator
+
+i tried sleeping i don't know what it is

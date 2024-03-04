@@ -26,6 +26,41 @@ class LiquidatableUser:
     total_collateral: int
 
 
+@dataclass
+class BankruptUser:
+    user: DriftUser
+    user_key: str
+
+
+def get_position_stats(position: PerpPosition) -> Tuple[bool, bool, bool, bool, int]:
+    has_perp_pos = False
+    has_unsettled_perp_pnl = False
+    has_lp_pos = False
+    perp_has_open_orders = False
+    perp_index_with_open_orders = -1
+    if position.open_orders > 0:
+        perp_has_open_orders = True
+        perp_index_with_open_orders = position.market_index
+
+    has_unsettled_perp_pnl = (
+        position.base_asset_amount == 0 and not position.quote_asset_amount == 0
+    )
+
+    has_perp_pos = (
+        not position.base_asset_amount == 0 and not position.quote_asset_amount == 0
+    )
+
+    has_lp_pos = not position.lp_shares == 0
+
+    return (
+        has_perp_pos,
+        has_unsettled_perp_pnl,
+        has_lp_pos,
+        perp_has_open_orders,
+        perp_index_with_open_orders,
+    )
+
+
 def calculate_spot_token_amount_to_liquidate(
     drift_client: DriftClient,
     liquidator_user: DriftUser,
@@ -80,9 +115,10 @@ def calculate_base_amount_to_liquidate(
         oracle_price * QUOTE_PRECISION * max_pos_takeover_pct_den
     )
 
-    return min(
+    ret = min(
         abs(liquidatee_position.base_asset_amount), base_asset_amount_to_liquidate
     )
+    return ret
 
 
 def find_best_spot_position(
@@ -104,6 +140,7 @@ def find_best_spot_position(
     index_with_open_orders = -1
 
     for position in spot_positions:
+        # print(position)
         if position.scaled_balance == 0:
             # We do not care.
             continue
@@ -190,6 +227,8 @@ def find_spot_bankrupting_markets(
     bankrupt_indexes: list[int] = []
     for market in drift_client.get_spot_market_accounts():
         position = user.get_spot_position(market.market_index)
+        if not position:
+            continue
         if position.scaled_balance <= 0 or not is_variant(position.balance_type, "Borrow"):  # type: ignore
             continue
         bankrupt_indexes.append(market.market_index)
@@ -275,6 +314,7 @@ async def liquidate_perp_pnl(
 
         if claimable_pnl > 0 and borrow_market_index_to_liq == -1:
             start = time.time()
+            print(f"settle pnl market index: {liquidatee_position.market_index}")
             try:
                 sig = await liquidator.drift_client.settle_pnl(
                     user.user_public_key,
@@ -369,10 +409,12 @@ async def liquidate_perp_pnl(
                 f"no sub account to liquidate for market: {liquidatee_position.market_index}, skipping"
             )
             return
+        assert deposit_market_index_to_liq != -1
 
+        print(str(user.user_public_key))
         try:
             sig = await liquidator.drift_client.liquidate_perp_pnl_for_deposit(
-                user.user_public_key,
+                user.get_user_account().authority,
                 liquidatee_position.market_index,
                 deposit_market_index_to_liq,
                 deposit_amount_to_liq,
@@ -382,18 +424,168 @@ async def liquidate_perp_pnl(
             logger.success(
                 f"successfully liquidated deposit for perp pnl for user: {user.user_public_key}, market: {liquidatee_position.market_index}, amount: {deposit_amount_to_liq}"
             )
-            logger.sucess({sig})
-            logs = await liquidator.drift_client.connection.get_transaction(sig)
-            if logs.value:
-                if logs.value.transaction:
-                    if logs.value.transaction.meta:
-                        if logs.value.transaction.meta.log_messages:
-                            append_to_csv(
-                                logs.value.transaction.meta.log_messages,
-                                "liquidations.csv",
-                                sig,
-                            )
+            logger.success(sig)
+            # logs = await liquidator.drift_client.connection.get_transaction(sig)
+            # if logs.value:
+            #     if logs.value.transaction:
+            #         if logs.value.transaction.meta:
+            #             if logs.value.transaction.meta.log_messages:
+            #                 append_to_csv(
+            #                     logs.value.transaction.meta.log_messages,
+            #                     "liquidations.csv",
+            #                     sig,
+            #                 )
         except Exception as e:
             logger.error(
                 f"failed to liquidate deposit for perp pnl for user: {user.user_public_key}, market: {liquidatee_position.market_index}: {e}"
             )
+
+
+async def clear_perp_pos(
+    liquidator,
+    liquidatable_user: LiquidatableUser,
+    liquidatee_perp_index_with_open_orders: int,
+    sub_account_to_liq_perp: int,
+):
+    logger.info(
+        f"user {liquidatable_user.user_key} has open orders in perp market: {liquidatee_perp_index_with_open_orders}"
+    )
+
+    start = time.time()
+    try:
+        sig = await liquidator.drift_client.liquidate_perp(
+            liquidatable_user.user.get_user_account().authority,
+            liquidatee_perp_index_with_open_orders,
+            0,
+            None,
+            liq_sub_account_id=sub_account_to_liq_perp,
+        )
+        logger.success(
+            f"successfully cleared open orders for user: {liquidatable_user.user_key}"
+        )
+        logger.success(sig)
+    except Exception as e:
+        logger.error(
+            f"failed to clear open orders for user: {liquidatable_user.user_key}"
+        )
+        logger.error(e)
+    logger.info(f"finished clearing open orders in {time.time() - start}s")
+
+
+async def liquidate_spot_with_oo(
+    liquidator,
+    liquidatable_user: LiquidatableUser,
+    index_with_max_assets: int,
+    index_with_open_orders: int,
+    sub_account_to_liq_perp: int,
+):
+    logger.info(
+        f"user {liquidatable_user.user_key} liquidate spot with assets in {index_with_max_assets} and oo in {index_with_open_orders}"
+    )
+    start = time.time()
+    try:
+        sig = await liquidator.drift_client.liquidate_spot(
+            liquidatable_user.user.get_user_account().authority,
+            index_with_max_assets,
+            index_with_open_orders,
+            0,
+            None,
+            liq_sub_account_id=sub_account_to_liq_perp,
+        )
+        logger.success(
+            f"successfully liquidated spot position for user: {liquidatable_user.user_key}"
+        )
+        logger.success({sig})
+    except Exception as e:
+        logger.error(
+            f"failed to liquidate spot position for user: {liquidatable_user.user_key}"
+        )
+        logger.error(e)
+    logger.info(f"finished liquidating spot position in {time.time() - start}s")
+
+
+async def clear_lp_pos(
+    liquidator,
+    liquidatable_user: LiquidatableUser,
+    liquidatee_position: PerpPosition,
+    sub_account_to_liq_perp: int,
+):
+    logger.info(f"clearing lp position for user: {liquidatable_user.user_key}")
+    start = time.time()
+    try:
+        sig = await liquidator.drift_client.liquidate_perp(
+            liquidatable_user.user.get_user_account().authority,
+            liquidatee_position.market_index,
+            0,
+            None,
+            liq_sub_account_id=sub_account_to_liq_perp,
+        )
+        logger.success(
+            f"successfully cleared lp position for user: {liquidatable_user.user_key}"
+        )
+        logger.success(sig)
+    except Exception as e:
+        logger.error(
+            f"failed to clear lp position for user: {liquidatable_user.user_key}"
+        )
+        logger.error(e)
+    logger.info(f"finished clearing lp position in {time.time() - start}s")
+
+
+async def liquidate_perp(
+    liquidator,
+    liquidatable_user: LiquidatableUser,
+    liquidatee_position: PerpPosition,
+    sub_account_to_liq_perp: int,
+    base_amount_to_liquidate: int,
+):
+    start = time.time()
+    try:
+        sig = await liquidator.drift_client.liquidate_perp(
+            liquidatable_user.user.get_user_account().authority,
+            liquidatee_position.market_index,
+            base_amount_to_liquidate,
+            None,
+            liq_sub_account_id=sub_account_to_liq_perp,
+        )
+        logger.success(
+            f"successfully liquidated perp position for user: {liquidatable_user.user_key}"
+        )
+        logger.success(sig)
+    except Exception as e:
+        logger.error(
+            f"failed to liquidate perp position for user: {liquidatable_user.user_key}"
+        )
+        logger.error(e)
+    logger.info(f"finished liquidating perp position in {time.time() - start}s")
+
+
+async def clear_liquidation(
+    liquidator,
+    liquidatable_user: LiquidatableUser,
+    index_with_max_assets: int,
+    index_with_open_orders: int,
+):
+    logger.info(
+        f"user: {liquidatable_user.user_key} is stuck in liquidation, need to clear it"
+    )
+
+    start = time.time()
+    try:
+        sig = await liquidator.drift_client.liquidate_spot(
+            liquidatable_user.user.get_user_account().authority,
+            index_with_max_assets,
+            index_with_open_orders,
+            0,
+            None,
+        )
+        logger.success(
+            f"successfully cleared stuck liquidation for user: {liquidatable_user.user_key}"
+        )
+        logger.success(sig)
+    except Exception as e:
+        logger.error(
+            f"failed to clear stuck liquidation for user: {liquidatable_user.user_key}"
+        )
+        logger.error(e)
+    logger.info(f"finished clearing stuck liquidation in {time.time() - start}s")

@@ -11,7 +11,8 @@ anchorpy = "0.17.1"
 solana = "0.30.1"
 python-dotenv = "^1.0.0"
 drift-jit-proxy = "^0.1.1"
-driftpy = {path = "/Users/frankfinnegan/Documents/musings/drift/driftpy", develop = true}
+driftpy = { git = "https://github.com/soundsonacid/driftpy.git", branch = "sims-stuff" }
+spl = "^0.0.1.dev0"
 
 [build-system]
 requires = ["poetry-core"]
