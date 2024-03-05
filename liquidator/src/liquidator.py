@@ -376,7 +376,9 @@ class Liquidator(LiquidatorConfig):
 
                     try:
                         sig = await self.drift_client.resolve_perp_bankruptcy(
-                            user_account.authority, market_index
+                            Pubkey.from_string(bankrupt_user.user_key),
+                            user_account,
+                            market_index,
                         )
                         logger.success(
                             f"successfully resolved perp bankruptcy in market: {market_index} for user: {str(user_key)}"
@@ -399,7 +401,9 @@ class Liquidator(LiquidatorConfig):
 
                     try:
                         sig = await self.drift_client.resolve_spot_bankruptcy(
-                            user_account.authority, market_index
+                            Pubkey.from_string(bankrupt_user.user_key),
+                            user_account,
+                            market_index,
                         )
                         logger.success(
                             f"successfully resolved spot bankruptcy in market: {market_index} for user: {str(user_key)}"

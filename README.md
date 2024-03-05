@@ -33,3 +33,7 @@ WIP
 it seems like for some reason you have to run the script twice for collateral to be recognized by the liquidator
 
 i tried sleeping i don't know what it is
+
+if `retrying` prints too many times just restart the script
+
+it's really finicky on localnet for some reason i'm just not sure why

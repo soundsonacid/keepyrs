@@ -4,6 +4,7 @@ import os
 from dotenv import load_dotenv  # type: ignore
 
 from solana.rpc.async_api import AsyncClient
+from solders.pubkey import Pubkey
 from anchorpy import Wallet
 
 from driftpy.drift_client import DriftClient
@@ -12,6 +13,8 @@ from driftpy.account_subscription_config import AccountSubscriptionConfig
 from driftpy.types import TxParams
 from driftpy.user_map.user_map_config import UserMapConfig, WebsocketConfig
 from driftpy.user_map.user_map import UserMap
+from driftpy.address_lookup_table import get_address_lookup_table
+
 from keepyr_types import LiquidatorConfig, PerpFillerConfig
 from perp_filler.src.perp_filler import PerpFiller
 from liquidator.src.liquidator import Liquidator
@@ -31,12 +34,19 @@ async def main():
 
     connection = AsyncClient(url)
 
+    lut = await get_address_lookup_table(
+        connection, Pubkey.from_string("D9cnvzswDikQDf53k4HpQ3KJ9y1Fv3HGGDFYMXnK5T6c")
+    )
+
+    print(len(lut.addresses))
+
     drift_client = DriftClient(
         connection,
         wallet,
         "mainnet",
         account_subscription=AccountSubscriptionConfig("websocket"),
         tx_params=TxParams(1_400_000, 100_000_000),  # crank priority fees way up
+        tx_version=0,
     )
 
     await drift_client.subscribe()
@@ -79,7 +89,8 @@ async def main():
             print("retrying")
             await asyncio.sleep(5)
 
-    await asyncio.sleep(30)
+    print("sleeping for 60 seconds...")
+    await asyncio.sleep(60)
     usermap_config = UserMapConfig(drift_client, WebsocketConfig())
     usermap = UserMap(usermap_config)
 
@@ -179,9 +190,11 @@ async def main():
 
     await perp_filler.init()
 
-    for i in range(5):
+    for i in range(10):
         print(f"attempting to fill & liquidate: {i}")
         await perp_filler.try_fill()
+        await asyncio.sleep(10)
+        await liquidator.try_liquidate()
         await asyncio.sleep(10)
         await liquidator.try_resolve_bankruptcies()
         await asyncio.sleep(10)
@@ -189,8 +202,8 @@ async def main():
 
     flag_file = os.path.expanduser("~/file.txt")
 
-    # with open(flag_file, "w") as f:
-    #     f.write("done")
+    with open(flag_file, "w") as f:
+        f.write("done")
 
     print("keepyrs done")
 
